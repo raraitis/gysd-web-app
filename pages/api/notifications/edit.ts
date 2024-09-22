@@ -1,0 +1,39 @@
+import type { NextApiRequest, NextApiResponse } from "next";
+import { getServerSession } from "next-auth";
+import { nextauthOptions } from "@/lib/nextauthOptions";
+import { CommonResponse } from "@/types/responses";
+import { patch } from "@/lib/api/common";
+import { mainClient } from "@/lib/api";
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse<CommonResponse<any>>
+) {
+  const jwt = await getServerSession(req, res, nextauthOptions).then(
+    (session) => session?.user?.accessToken
+  );
+
+  const { io } = req.query;
+
+  await patch<CommonResponse>({
+    client: mainClient,
+    url: `/api/v1/customer/notifications/${io}`,
+    config: {
+      headers: {
+        Authorization: `Bearer ${jwt}`,
+      },
+    },
+    onResponse: ({ data }) => {
+      if (data) {
+        return res.status(200).send({ success: true, data: data.data });
+      }
+    },
+    onError: ({ response }) => {
+      console.log(response, response?.statusText, "SERVER ERROR");
+      return res.status(response?.status || 500).send({
+        success: false,
+        message: response?.statusText,
+      });
+    },
+  });
+}
